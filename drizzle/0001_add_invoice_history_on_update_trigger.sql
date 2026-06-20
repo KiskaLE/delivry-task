@@ -5,7 +5,7 @@ CREATE OR REPLACE FUNCTION create_invoice_history_on_update()
 RETURNS trigger AS $$
 BEGIN
   INSERT INTO "delivry-task_invoices_history" (
-    "id",
+    "invoiceId",
     "shipmentId",
     "weight",
     "price",

@@ -16,7 +16,8 @@ CREATE TABLE "delivry-task_invoices" (
 );
 --> statement-breakpoint
 CREATE TABLE "delivry-task_invoices_history" (
-	"id" text PRIMARY KEY NOT NULL,
+	"id" serial PRIMARY KEY NOT NULL,
+	"invoiceId" text NOT NULL,
 	"shipmentId" text NOT NULL,
 	"weight" numeric NOT NULL,
 	"price" numeric NOT NULL,
