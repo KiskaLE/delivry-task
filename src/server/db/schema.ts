@@ -17,35 +17,45 @@ export const invoices = createTable(
   "invoices",
   (d) => ({
     id: d.text().notNull().primaryKey(),
-    shipmentId: d.text().unique().notNull().references(() => shipments.id),
-    weight: d.numeric({ mode: 'bigint' }).notNull(), // units in KG
-    price: d.numeric({ mode: 'bigint' }).notNull(), // units in CZK
+    shipmentId: d
+      .text()
+      .unique()
+      .notNull()
+      .references(() => shipments.id),
+    weight: d.numeric({ mode: "number" }).notNull(), // units in KG
+    price: d.numeric({ mode: "number" }).notNull(), // units in CZK
     createdAt: d
       .timestamp({ withTimezone: true })
       .$defaultFn(() => /* @__PURE__ */ new Date())
       .notNull(),
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
-  }), (table) => [
+  }),
+  (table) => [
     index("invoice_shipment_id_idx").on(table.shipmentId),
-    index("invoice_created_at_idx").on(table.createdAt)
+    index("invoice_created_at_idx").on(table.createdAt),
   ],
 );
 
 export const invoicesHistory = createTable(
   "invoices_history",
   (d) => ({
-    id: d.text().primaryKey(),
-    shipmentId: d.text().notNull().references(() => shipments.id),
-    weight: d.numeric({ mode: 'bigint' }).notNull(), // units in KG
-    price: d.numeric({ mode: 'bigint' }).notNull(), // units in CZK
+    id: d.serial().primaryKey(),
+    invoiceId: d.text().notNull(),
+    shipmentId: d
+      .text()
+      .notNull()
+      .references(() => shipments.id),
+    weight: d.numeric({ mode: "number" }).notNull(), // units in KG
+    price: d.numeric({ mode: "number" }).notNull(), // units in CZK
     createdAt: d
       .timestamp({ withTimezone: true })
       .$defaultFn(() => /* @__PURE__ */ new Date())
       .notNull(),
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
-  }), (table) => [
+  }),
+  (table) => [
     index("invoice_history_shipment_id_idx").on(table.shipmentId),
-    index("invoice_history_created_at_idx").on(table.createdAt)
+    index("invoice_history_created_at_idx").on(table.createdAt),
   ],
 );
 
@@ -53,22 +63,21 @@ export const shipments = createTable(
   "shipments",
   (d) => ({
     id: d.text().notNull().primaryKey(),
-    companyId: d.text().notNull().references(() => companies.id),
+    companyId: d
+      .text()
+      .notNull()
+      .references(() => companies.id),
     trackingNumber: d.text().unique().notNull(),
-    shipmentCreatedAt:
-      d.timestamp({ withTimezone: true })
-        .$defaultFn(() => /* @__PURE__ */ new Date())
-        .notNull(),
-    mode: d.text({ enum: ["import", "export"] }).notNull(),
-    provider: d.text({
-      enum: [
-        "GLS",
-        "DPD",
-        "UPS",
-        "PPL",
-        "FedEx"
-      ]
-    }).notNull(),
+    shipmentCreatedAt: d
+      .timestamp({ withTimezone: true })
+      .$defaultFn(() => /* @__PURE__ */ new Date())
+      .notNull(),
+    mode: d.text({ enum: ["IMPORT", "EXPORT"] }).notNull(),
+    provider: d
+      .text({
+        enum: ["GLS", "DPD", "UPS", "PPL", "FedEx"],
+      })
+      .notNull(),
     originCountry: d.text().notNull(), // ISO code of the origin country
     destinationCountry: d.text().notNull(), // ISO code of the destination country
     createdAt: d
@@ -76,11 +85,12 @@ export const shipments = createTable(
       .$defaultFn(() => /* @__PURE__ */ new Date())
       .notNull(),
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
-  }), (table) => [
+  }),
+  (table) => [
     index("shipment_company_id_idx").on(table.companyId),
-    index("shipment_created_at_idx").on(table.createdAt)
+    index("shipment_created_at_idx").on(table.createdAt),
   ],
-)
+);
 
 export const companies = createTable(
   "companies",
@@ -92,10 +102,9 @@ export const companies = createTable(
       .$defaultFn(() => /* @__PURE__ */ new Date())
       .notNull(),
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
-  }), (table) => [
-    index("company_created_at_idx").on(table.createdAt)
-  ]
-)
+  }),
+  (table) => [index("company_created_at_idx").on(table.createdAt)],
+);
 
 export const invoicesRelations = relations(invoices, ({ one }) => ({
   shipment: one(shipments, {
@@ -104,13 +113,23 @@ export const invoicesRelations = relations(invoices, ({ one }) => ({
   }),
 }));
 
+export const invoicesHistoryRelations = relations(
+  invoicesHistory,
+  ({ one }) => ({
+    shipment: one(shipments, {
+      fields: [invoicesHistory.shipmentId],
+      references: [shipments.id],
+    }),
+  }),
+);
+
 export const shipmentsRelations = relations(shipments, ({ one, many }) => ({
   company: one(companies, {
     fields: [shipments.companyId],
     references: [companies.id],
   }),
   invoices: one(invoices),
-  invoices_history: many(invoicesHistory)
+  invoices_history: many(invoicesHistory),
 }));
 
 export const companiesRelations = relations(companies, ({ many }) => ({
