@@ -8,6 +8,13 @@
       "when": 1781946446066,
       "tag": "0000_add_invoice_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781946492263,
+      "tag": "0001_add_invoice_history_on_update_trigger",
+      "breakpoints": true
     }
   ]
 }
