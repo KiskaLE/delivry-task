@@ -1,4 +1,5 @@
 import z from "zod";
+import { shipmentModeSchema, shipmentProvidersSchema } from "./shipment";
 
 export const invoiceImportSchema = z.array(
     z.object({
@@ -11,8 +12,8 @@ export const invoiceImportSchema = z.array(
                 id: z.string().min(1),
                 name: z.string().min(1),
             }),
-            provider: z.enum(["GLS", "DPD", "UPS", "PPL", "FedEx"]),
-            mode: z.enum(["EXPORT", "IMPORT"]),
+            provider: shipmentProvidersSchema,
+            mode: shipmentModeSchema,
             originCountry: z.string().length(2),
             destinationCountry: z.string().length(2),
         }),

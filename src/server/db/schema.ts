@@ -13,6 +13,9 @@ import { relations } from "drizzle-orm/relations";
  */
 export const createTable = pgTableCreator((name) => `delivry-task_${name}`);
 
+export const shipmentProviderEnumValues = ["GLS", "DPD", "UPS", "PPL", "FedEx"] as const;
+export const shipmentModeEnumValues = ["IMPORT", "EXPORT"] as const;
+
 export const invoices = createTable(
   "invoices",
   (d) => ({
@@ -72,10 +75,10 @@ export const shipments = createTable(
       .timestamp({ withTimezone: true })
       .$defaultFn(() => /* @__PURE__ */ new Date())
       .notNull(),
-    mode: d.text({ enum: ["IMPORT", "EXPORT"] }).notNull(),
+    mode: d.text({ enum: shipmentModeEnumValues }).notNull(),
     provider: d
       .text({
-        enum: ["GLS", "DPD", "UPS", "PPL", "FedEx"],
+        enum: shipmentProviderEnumValues,
       })
       .notNull(),
     originCountry: d.text().notNull(), // ISO code of the origin country
