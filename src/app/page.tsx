@@ -1,7 +1,8 @@
 "use client";
 
-import InvoiceCard from "~/components/invoice-card";
+import InvoiceCard, { InvoiceCardSkeleton } from "~/components/invoice-card";
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "~/components/ui/combobox";
+import type { Company } from "~/modules/hooks/use-home";
 import { useHome } from "~/modules/hooks/use-home";
 import InvoiceUploadDialog from "~/modules/incoice-upload-dialog";
 
@@ -21,7 +22,7 @@ export default function Home() {
 
   return (
     <main className="flex flex-col gap-5 min-h-screen items-center p-5 pt-10">
-      <div className="flex flex-col gap-3 w-fit">
+      <div className="flex w-full max-w-300 flex-col gap-3">
         <div className="flex justify-between max-w-300 w-full">
           <Combobox
             items={companiesData}
@@ -36,7 +37,7 @@ export default function Home() {
             <ComboboxContent>
               <ComboboxEmpty>No items found.</ComboboxEmpty>
               <ComboboxList onScroll={handleCompanyListScroll}>
-                {(item) => (
+                {(item: Company) => (
                   <ComboboxItem key={item.id} value={item}>
                     {item.name}
                   </ComboboxItem>
@@ -47,8 +48,12 @@ export default function Home() {
           <InvoiceUploadDialog />
         </div>
 
-        <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {shipmentsQuery.isError ? null : isInitialLoading ? null : (
+        <div className="grid w-full sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {shipmentsQuery.isError ? null : isInitialLoading ? (
+            Array.from({ length: 30 }).map((_, index) => (
+              <InvoiceCardSkeleton key={index} />
+            ))
+          ) : (
             shipmentsData.map((data) => {
               if (!data.invoices) {
                 return null

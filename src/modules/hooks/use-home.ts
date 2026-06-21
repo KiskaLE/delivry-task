@@ -7,7 +7,7 @@ import { api, type RouterOutputs } from "~/trpc/react";
 type ShipmentsListData = RouterOutputs["shipment"]["list"];
 type ShipmentCursor = NonNullable<ShipmentsListData["nextCursor"]>;
 type CompaniesFindData = RouterOutputs["company"]["find"];
-type Company = CompaniesFindData["data"][number];
+export type Company = CompaniesFindData["data"][number];
 type CompanyCursor = NonNullable<CompaniesFindData["nextCursor"]>;
 
 export function useHome() {
