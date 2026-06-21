@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { cn } from "~/lib/utils";
 import { Card } from "./ui/card";
 import { Separator } from "./ui/separator";
@@ -7,7 +8,11 @@ import Image from "next/image";
 import type { ShipmentModes, ShipmentProviders } from "~/types/shipment";
 import { Skeleton } from "./ui/skeleton";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { PackageIcon } from "@hugeicons/core-free-icons";
+import {
+  Copy01Icon,
+  PackageIcon,
+  Tick02Icon,
+} from "@hugeicons/core-free-icons";
 
 type InvoiceCardData = {
   provider: ShipmentProviders;
@@ -95,7 +100,13 @@ export default function InvoiceCard({
   invoicedPrice,
   invoicedWeight,
 }: InvoiceCardData) {
-  const isExport = shipmentMode === "EXPORT";
+  const [isTrackingCopied, setIsTrackingCopied] = useState(false);
+
+  async function handleCopyTrackingNumber() {
+    await navigator.clipboard.writeText(trackingNumber);
+    setIsTrackingCopied(true);
+    window.setTimeout(() => setIsTrackingCopied(false), 1200);
+  }
 
   return (
     <Card className="w-full gap-0 p-0 transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
@@ -108,15 +119,35 @@ export default function InvoiceCard({
             <div className="truncate text-sm leading-tight font-semibold">
               {companyName}
             </div>
-            <div className="text-muted-foreground mt-0.5 truncate font-mono text-[11px]">
-              TRK {trackingNumber}
-            </div>
+            <button
+              type="button"
+              onClick={handleCopyTrackingNumber}
+              className="group/copy text-muted-foreground hover:text-foreground focus-visible:text-foreground focus-visible:ring-ring/40 mt-0.5 flex max-w-full cursor-copy items-center gap-1.5 rounded-sm font-mono text-[11px] transition outline-none focus-visible:ring-2"
+              aria-label={`Copy tracking number ${trackingNumber}`}
+              title={
+                isTrackingCopied ? "Tracking copied" : "Copy tracking number"
+              }
+            >
+              <span className="truncate">TRK {trackingNumber}</span>
+              <span
+                className={cn(
+                  "shrink-0 opacity-0 transition group-hover/copy:opacity-100 group-focus-visible/copy:opacity-100",
+                  isTrackingCopied && "text-emerald-600 opacity-100",
+                )}
+              >
+                <HugeiconsIcon
+                  icon={isTrackingCopied ? Tick02Icon : Copy01Icon}
+                  strokeWidth={2}
+                  className="size-3.5"
+                />
+              </span>
+            </button>
           </div>
         </div>
         <div
           className={cn(
             "shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold tracking-wide uppercase",
-            isExport
+            shipmentMode === "EXPORT"
               ? "bg-sky-100 text-sky-700 ring-1 ring-sky-200"
               : "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200",
           )}
@@ -161,7 +192,7 @@ export default function InvoiceCard({
             <span
               className={cn(
                 "bg-background relative z-10 flex size-8 shrink-0 items-center justify-center",
-                isExport ? "text-sky-700" : "text-emerald-700",
+                shipmentMode === "EXPORT" ? "text-sky-700" : "text-emerald-700",
               )}
             >
               <HugeiconsIcon
