@@ -20,6 +20,7 @@ import {
 import { Field, FieldGroup, FieldError } from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import { cn } from "~/lib/utils";
 import {
   TableBody,
   TableCell,
@@ -30,11 +31,18 @@ import {
 
 type InvoiceImportRow = z.infer<typeof invoiceImportSchema>[number];
 
-export default function InvoiceUploadDialog() {
+type InvoiceUploadDialogProps = {
+  onImportSuccessAction?: () => void | Promise<void>;
+};
+
+export default function InvoiceUploadDialog({
+  onImportSuccessAction,
+}: InvoiceUploadDialogProps) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<InvoiceImportRow[]>([]);
   const [parseError, setParseError] = useState<string | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const stickyHeadClass = "sticky top-0 z-10 bg-background";
 
   const importInvoicesMutation = api.invoice.import.useMutation({
@@ -42,12 +50,14 @@ export default function InvoiceUploadDialog() {
     onSuccess: (value) => {
       if (value.duplicates === 0) {
         toast.success(`${value.imported} invoices imported succesfuly`);
-        return;
+      } else {
+        toast.success(
+          `${value.imported} invoices imported, ${value.duplicates} duplicates skipped`,
+        );
       }
 
-      toast.success(
-        `${value.imported} invoices imported, ${value.duplicates} duplicates skipped`,
-      );
+      void onImportSuccessAction?.();
+      setOpen(false);
     },
   });
 
@@ -120,6 +130,7 @@ export default function InvoiceUploadDialog() {
           form.reset();
           setRows([]);
           setParseError(null);
+          setIsDraggingFiles(false);
           setFileInputKey((key) => key + 1);
         }
       }}
@@ -145,7 +156,60 @@ export default function InvoiceUploadDialog() {
             <form.Field name="files">
               {(field) => (
                 <Field>
-                  <Label htmlFor={field.name}>JSON imports</Label>
+                  {rows.length === 0 ? (
+                    <Label
+                      htmlFor={field.name}
+                      className={cn(
+                        "border-input bg-input/20 hover:bg-input/30 flex min-h-90 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed px-6 py-14 text-center transition-colors",
+                        isDraggingFiles &&
+                        "border-ring bg-input/40 ring-ring/30 ring-2",
+                        parseError && "border-destructive",
+                      )}
+                      onDragEnter={(event) => {
+                        event.preventDefault();
+                        setIsDraggingFiles(true);
+                      }}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        setIsDraggingFiles(true);
+                      }}
+                      onDragLeave={(event) => {
+                        if (
+                          !event.currentTarget.contains(
+                            event.relatedTarget as Node,
+                          )
+                        ) {
+                          setIsDraggingFiles(false);
+                        }
+                      }}
+                      onDrop={async (event) => {
+                        event.preventDefault();
+                        setIsDraggingFiles(false);
+
+                        const files = Array.from(event.dataTransfer.files);
+
+                        if (files.length === 0) {
+                          field.handleChange([]);
+                          setRows([]);
+                          setParseError("Vyber aspoň jeden JSON soubor.");
+                          return;
+                        }
+
+                        field.handleChange(files);
+                        await parseJsonFiles(files);
+                      }}
+                    >
+                      <span className="text-base font-medium">
+                        Drop JSON files here
+                      </span>
+                      <span className="text-muted-foreground mt-2 text-sm">
+                        or click to choose one or more invoice imports
+                      </span>
+                      <span className="text-muted-foreground mt-1 text-xs">
+                        Supports .json files only
+                      </span>
+                    </Label>
+                  ) : null}
                   <Input
                     key={fileInputKey}
                     id={field.name}
@@ -153,6 +217,7 @@ export default function InvoiceUploadDialog() {
                     type="file"
                     accept="application/json,.json"
                     multiple
+                    className={rows.length === 0 ? "sr-only" : undefined}
                     onBlur={field.handleBlur}
                     onChange={async (event) => {
                       const files = Array.from(event.target.files ?? []);

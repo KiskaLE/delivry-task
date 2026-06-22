@@ -19,6 +19,7 @@ export function useHome() {
   const [companyPages, setCompanyPages] = useState<CompaniesFindData[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const utils = api.useUtils();
 
   const companiesQuery = api.company.find.useQuery({
     filter: {
@@ -68,6 +69,18 @@ export function useHome() {
     }
   }
 
+  async function handleInvoiceImportSuccess() {
+    setCursor(undefined);
+    setShipmentPages([]);
+    setCompanyCursor(undefined);
+    setCompanyPages([]);
+
+    await Promise.all([
+      utils.shipment.list.invalidate(),
+      utils.company.find.invalidate(),
+    ]);
+  }
+
   useEffect(() => {
     if (!shipmentsQuery.isLoading && shipmentsQuery.data) {
       setShipmentPages((pages) =>
@@ -114,6 +127,7 @@ export function useHome() {
   return {
     companiesData,
     handleCompanyFilter,
+    handleInvoiceImportSuccess,
     handleCompanyListScroll,
     handleCompanySearch,
     isInitialLoading,
