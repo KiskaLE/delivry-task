@@ -1,29 +1,149 @@
-# Create T3 App
+# Delivry Task
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+A web application for managing shipments and invoices. The project is built with Next.js, React, tRPC, Drizzle ORM, and PostgreSQL.
 
-## What's next? How do I make an app with this?
+## Tech Stack
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+- Next.js 15
+- React 19
+- tRPC 11
+- Drizzle ORM
+- PostgreSQL
+- Tailwind CSS
+- pnpm
+- Docker / Docker Compose
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+## Requirements
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+For local development:
 
-## Learn More
+- Node.js 22
+- pnpm 10
+- Docker or Podman for the local PostgreSQL database
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+For Docker deployment:
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
+- Docker
+- Docker Compose
 
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
+## Environment Configuration
 
-## How do I deploy this?
+Create a `.env` file from the example:
 
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+```bash
+cp .env.example .env
+```
+
+Minimal local development configuration:
+
+```env
+DATABASE_URL="postgresql://postgres:password@localhost:5432/delivry-task"
+```
+
+Optional variables for Docker Compose deployment:
+
+```env
+POSTGRES_PASSWORD="change-me"
+POSTGRES_PORT="5432"
+APP_PORT="3000"
+```
+
+`DATABASE_URL` is required by the application and database migrations. In the Docker Compose deployment, it is built automatically from `POSTGRES_PASSWORD` and the internal `postgres` hostname.
+
+## Local Development
+
+Install dependencies:
+
+```bash
+pnpm install
+```
+
+Start the local database:
+
+```bash
+./start-database.sh
+```
+
+Run migrations:
+
+```bash
+pnpm db:migrate
+```
+
+Start the development server:
+
+```bash
+pnpm dev
+```
+
+The application will be available at:
+
+```text
+http://localhost:3000
+```
+
+## Deployment With Docker Compose
+
+The project includes a production `Dockerfile` and a compose configuration in [docker/docker-compose.yaml](docker/docker-compose.yaml).
+
+Prepare a `.env` file on the server. Recommended minimal production configuration:
+
+```env
+POSTGRES_PASSWORD="strong-production-password"
+POSTGRES_PORT="5432"
+APP_PORT="3000"
+```
+
+Start the deployment:
+
+```bash
+docker compose --env-file .env -f docker/docker-compose.yaml up -d --build
+```
+
+Compose starts three services:
+
+- `postgres` - PostgreSQL database with the persistent `postgres18_data` volume
+- `migrator` - one-off container that creates the database if it does not exist and runs `pnpm db:migrate`
+- `app` - production Next.js application exposed on `APP_PORT`
+
+Check service status:
+
+```bash
+docker compose --env-file .env -f docker/docker-compose.yaml ps
+```
+
+Application logs:
+
+```bash
+docker compose --env-file .env -f docker/docker-compose.yaml logs -f app
+```
+
+Migration logs:
+
+```bash
+docker compose --env-file .env -f docker/docker-compose.yaml logs migrator
+```
+
+Stop the deployment:
+
+```bash
+docker compose --env-file .env -f docker/docker-compose.yaml down
+```
+
+Stop the deployment and remove the database volume:
+
+```bash
+docker compose --env-file .env -f docker/docker-compose.yaml down -v
+```
+
+Use this only if you really want to delete the data.
+
+## Updating Production
+
+Pull the new code version on the server and run:
+
+```bash
+docker compose --env-file .env -f docker/docker-compose.yaml up -d --build
+```
+
+On startup, the `migrator` runs again and applies new Drizzle migrations. The application container waits until the database is healthy and migrations complete successfully.
