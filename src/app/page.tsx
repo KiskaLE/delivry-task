@@ -1,5 +1,8 @@
 "use client";
 
+import { PackageIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+
 import InvoiceCard, { InvoiceCardSkeleton } from "~/components/invoice-card";
 import {
   Combobox,
@@ -59,32 +62,55 @@ export default function Home() {
         </div>
 
         <div className="grid w-full gap-5 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-          {shipmentsQuery.isError
-            ? null
-            : isInitialLoading
-              ? Array.from({ length: 30 }).map((_, index) => (
-                  <InvoiceCardSkeleton key={index} />
-                ))
-              : shipmentsData.map((data) => {
-                  if (!data.invoices) {
-                    return null;
-                  }
-                  return (
-                    <InvoiceCard
-                      key={data.id}
-                      companyName={data.company.name}
-                      provider={data.provider}
-                      trackingNumber={data.trackingNumber}
-                      shipmentMode={data.mode}
-                      originCountry={data.originCountry}
-                      destinationCountry={data.destinationCountry}
-                      invoicedPrice={data.invoices.price}
-                      invoicedWeight={data.invoices.weight}
-                      invoiceHistory={data.invoices_history}
-                      shipmentCreatedAt={data.createdAt}
-                    />
-                  );
-                })}
+          {shipmentsQuery.isError ? null : isInitialLoading ? (
+            Array.from({ length: 30 }).map((_, index) => (
+              <InvoiceCardSkeleton key={index} />
+            ))
+          ) : shipmentsData.length === 0 ? (
+            <div className="border-border/70 bg-card col-span-full flex min-h-80 flex-col items-center justify-center rounded-lg border border-dashed px-6 py-12 text-center">
+              <div className="bg-muted text-muted-foreground flex size-12 items-center justify-center rounded-md">
+                <HugeiconsIcon
+                  icon={PackageIcon}
+                  strokeWidth={2}
+                  className="size-6"
+                />
+              </div>
+              <h2 className="mt-4 text-base font-semibold">
+                No shipments found
+              </h2>
+              <p className="text-muted-foreground mt-1 max-w-sm text-sm">
+                {selectedCompany
+                  ? "This company does not have any imported shipments yet."
+                  : "Upload invoice JSON files to create shipments and review their invoice details here."}
+              </p>
+              <div className="mt-5">
+                <InvoiceUploadDialog
+                  onImportSuccessAction={handleInvoiceImportSuccess}
+                />
+              </div>
+            </div>
+          ) : (
+            shipmentsData.map((data) => {
+              if (!data.invoices) {
+                return null;
+              }
+              return (
+                <InvoiceCard
+                  key={data.id}
+                  companyName={data.company.name}
+                  provider={data.provider}
+                  trackingNumber={data.trackingNumber}
+                  shipmentMode={data.mode}
+                  originCountry={data.originCountry}
+                  destinationCountry={data.destinationCountry}
+                  invoicedPrice={data.invoices.price}
+                  invoicedWeight={data.invoices.weight}
+                  invoiceHistory={data.invoices_history}
+                  shipmentCreatedAt={data.createdAt}
+                />
+              );
+            })
+          )}
         </div>
         <div
           ref={loadMoreRef}
