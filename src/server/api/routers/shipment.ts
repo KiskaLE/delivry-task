@@ -3,7 +3,7 @@ import z from "zod";
 import { shipmentProvidersSchema } from "~/schema/shipment";
 
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
-import { shipments } from "~/server/db/schema";
+import { invoicesHistory, shipments } from "~/server/db/schema";
 
 export const shipmentRouter = createTRPCRouter({
   list: publicProcedure.input(z.object({
@@ -25,6 +25,9 @@ export const shipmentRouter = createTRPCRouter({
       with: {
         company: true,
         invoices: true,
+        invoices_history: {
+          orderBy: [desc(invoicesHistory.createdAt), desc(invoicesHistory.id)],
+        },
       },
 
       where: and(

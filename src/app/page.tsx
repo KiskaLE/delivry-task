@@ -68,6 +68,7 @@ export default function Home() {
                 destinationCountry={data.destinationCountry}
                 invoicedPrice={data.invoices.price}
                 invoicedWeight={data.invoices.weight}
+                invoiceHistory={data.invoices_history}
                 shipmentCreatedAt={data.createdAt}
               />
             })
