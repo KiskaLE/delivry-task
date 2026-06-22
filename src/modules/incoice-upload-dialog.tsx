@@ -1,7 +1,7 @@
 "use client";
 
 import { useForm } from "@tanstack/react-form";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
 import { invoiceImportSchema } from "~/schema/invoice";
@@ -35,6 +35,20 @@ type InvoiceUploadDialogProps = {
   onImportSuccessAction?: () => void | Promise<void>;
 };
 
+function getDuplicateValues(values: string[]) {
+  const counts = new Map<string, number>();
+
+  for (const value of values) {
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+
+  return new Set(
+    Array.from(counts.entries())
+      .filter(([, count]) => count > 1)
+      .map(([value]) => value),
+  );
+}
+
 export default function InvoiceUploadDialog({
   onImportSuccessAction,
 }: InvoiceUploadDialogProps) {
@@ -44,6 +58,19 @@ export default function InvoiceUploadDialog({
   const [fileInputKey, setFileInputKey] = useState(0);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const stickyHeadClass = "sticky top-0 z-10 bg-background";
+  const duplicateInvoiceIds = useMemo(
+    () => getDuplicateValues(rows.map((row) => row.id)),
+    [rows],
+  );
+  const duplicateShipmentIds = useMemo(
+    () => getDuplicateValues(rows.map((row) => row.shipment.id)),
+    [rows],
+  );
+  const duplicateRowsCount = rows.filter(
+    (row) =>
+      duplicateInvoiceIds.has(row.id) ||
+      duplicateShipmentIds.has(row.shipment.id),
+  ).length;
 
   const importInvoicesMutation = api.invoice.import.useMutation({
     onError: () => toast.error("Error occur when importing invoices"),
@@ -58,6 +85,7 @@ export default function InvoiceUploadDialog({
 
       void onImportSuccessAction?.();
       setOpen(false);
+      resetUploadForm();
     },
   });
 
@@ -82,7 +110,10 @@ export default function InvoiceUploadDialog({
       }),
     },
     onSubmit: async ({ value }) => {
-      const parsedRows = await parseJsonFiles(value.files);
+      setOpen(false);
+
+      const parsedRows =
+        rows.length > 0 ? rows : await parseJsonFiles(value.files);
 
       if (!parsedRows) {
         toast.error("Error parsing JSON");
@@ -92,6 +123,14 @@ export default function InvoiceUploadDialog({
       importInvoicesMutation.mutate(parsedRows);
     },
   });
+
+  const resetUploadForm = () => {
+    form.reset();
+    setRows([]);
+    setParseError(null);
+    setIsDraggingFiles(false);
+    setFileInputKey((key) => key + 1);
+  };
 
   const parseJsonFiles = async (files: File[]) => {
     setParseError(null);
@@ -116,8 +155,20 @@ export default function InvoiceUploadDialog({
       }
     }
 
-    setRows(parsedRows);
-    return parsedRows;
+    const sortedRows = [...parsedRows].sort((left, right) => {
+      const createdAtDiff =
+        new Date(left.shipment.createdAt).getTime() -
+        new Date(right.shipment.createdAt).getTime();
+
+      if (createdAtDiff !== 0) {
+        return createdAtDiff;
+      }
+
+      return left.shipment.id.localeCompare(right.shipment.id);
+    });
+
+    setRows(sortedRows);
+    return sortedRows;
   };
 
   return (
@@ -127,11 +178,7 @@ export default function InvoiceUploadDialog({
         setOpen(nextOpen);
 
         if (!nextOpen) {
-          form.reset();
-          setRows([]);
-          setParseError(null);
-          setIsDraggingFiles(false);
-          setFileInputKey((key) => key + 1);
+          resetUploadForm();
         }
       }}
     >
@@ -251,6 +298,13 @@ export default function InvoiceUploadDialog({
               <p className="text-muted-foreground mt-4 text-sm">
                 Ready to import {rows.length} invoices from selected files.
               </p>
+              {duplicateRowsCount > 0 && (
+                <div className="border-destructive/40 bg-destructive/10 text-destructive mt-3 rounded-md border px-3 py-2 text-sm">
+                  Import contains {duplicateRowsCount} rows with duplicate
+                  invoice or shipment identifiers. Check the highlighted rows
+                  before importing.
+                </div>
+              )}
               <div className="mt-2 max-h-96 w-full max-w-full min-w-0 overflow-auto rounded-md border">
                 <table className="w-full min-w-max caption-bottom text-xs">
                   <TableHeader>
@@ -273,32 +327,64 @@ export default function InvoiceUploadDialog({
                       <TableHead className={`${stickyHeadClass} text-right`}>
                         Created
                       </TableHead>
+                      <TableHead className={stickyHeadClass}>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rows.map((row) => (
-                      <TableRow key={row.id}>
-                        <TableCell>{row.shipment.trackingNumber}</TableCell>
-                        <TableCell>{row.shipment.company.name}</TableCell>
-                        <TableCell>{row.shipment.provider}</TableCell>
-                        <TableCell>{row.shipment.mode}</TableCell>
-                        <TableCell>
-                          {row.shipment.originCountry} {" -> "}
-                          {row.shipment.destinationCountry}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {row.invoicedWeight}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {row.invoicedPrice}
-                        </TableCell>
-                        <TableCell>
-                          {new Date(row.shipment.createdAt).toLocaleString(
-                            "cs-CZ",
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {rows.map((row, index) => {
+                      const hasDuplicateInvoiceId = duplicateInvoiceIds.has(
+                        row.id,
+                      );
+                      const hasDuplicateShipmentId = duplicateShipmentIds.has(
+                        row.shipment.id,
+                      );
+                      const duplicateLabels = [
+                        hasDuplicateInvoiceId ? "Duplicate invoice" : null,
+                        hasDuplicateShipmentId ? "Duplicate shipment" : null,
+                      ].filter(Boolean);
+
+                      return (
+                        <TableRow
+                          key={`${row.id}-${row.shipment.id}-${index}`}
+                          className={
+                            duplicateLabels.length > 0
+                              ? "bg-destructive/10"
+                              : undefined
+                          }
+                        >
+                          <TableCell>{row.shipment.trackingNumber}</TableCell>
+                          <TableCell>{row.shipment.company.name}</TableCell>
+                          <TableCell>{row.shipment.provider}</TableCell>
+                          <TableCell>{row.shipment.mode}</TableCell>
+                          <TableCell>
+                            {row.shipment.originCountry} {" -> "}
+                            {row.shipment.destinationCountry}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {row.invoicedWeight}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {row.invoicedPrice}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(row.shipment.createdAt).toLocaleString(
+                              "cs-CZ",
+                            )}
+                          </TableCell>
+                          <TableCell
+                            className={
+                              duplicateLabels.length > 0
+                                ? "text-destructive font-medium"
+                                : "text-muted-foreground"
+                            }
+                          >
+                            {duplicateLabels.length > 0
+                              ? duplicateLabels.join(", ")
+                              : "OK"}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </table>
               </div>
