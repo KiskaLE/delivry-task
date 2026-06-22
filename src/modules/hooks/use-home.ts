@@ -10,6 +10,19 @@ type CompaniesFindData = RouterOutputs["company"]["find"];
 export type Company = CompaniesFindData["data"][number];
 type CompanyCursor = NonNullable<CompaniesFindData["nextCursor"]>;
 
+function uniqueById<T extends { id: string }>(items: T[]) {
+  const seen = new Set<string>();
+
+  return items.filter((item) => {
+    if (seen.has(item.id)) {
+      return false;
+    }
+
+    seen.add(item.id);
+    return true;
+  });
+}
+
 export function useHome() {
   const [cursor, setCursor] = useState<ShipmentCursor>();
   const [shipmentPages, setShipmentPages] = useState<ShipmentsListData[]>([]);
@@ -97,8 +110,8 @@ export function useHome() {
     }
   }, [companyCursor, companiesQuery.data, companiesQuery.isLoading]);
 
-  const shipmentsData = shipmentPages.flatMap((page) => page.data);
-  const companiesData = companyPages.flatMap((page) => page.data);
+  const shipmentsData = uniqueById(shipmentPages.flatMap((page) => page.data));
+  const companiesData = uniqueById(companyPages.flatMap((page) => page.data));
   const nextCursor = shipmentPages.at(-1)?.nextCursor;
   const isInitialLoading =
     shipmentsQuery.isLoading && shipmentsData.length === 0;

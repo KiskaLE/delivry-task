@@ -297,7 +297,10 @@ export default function InvoiceCard({
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
             <div className="flex flex-col gap-3">
               {invoiceHistory.map((history) => (
-                <Card key={history.id} className="gap-3 p-4">
+                <Card
+                  key={`${history.id}-${history.invoiceId}`}
+                  className="gap-3 p-4"
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
