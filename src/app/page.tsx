@@ -53,7 +53,9 @@ export default function Home() {
               </ComboboxList>
             </ComboboxContent>
           </Combobox>
-          <InvoiceUploadDialog onImportSuccess={handleInvoiceImportSuccess} />
+          <InvoiceUploadDialog
+            onImportSuccessAction={handleInvoiceImportSuccess}
+          />
         </div>
 
         <div className="grid w-full gap-5 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">

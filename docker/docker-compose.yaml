@@ -1,20 +1,52 @@
 services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: runner
+    image: delivry-task-app
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-changeme}@postgres:5432/delivry-task
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+
+  migrator:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: migrator
+    image: delivry-task-migrator
+    restart: "no"
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-changeme}@postgres:5432/delivry-task
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   postgres:
     image: postgres:18
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
-      POSTGRES_DB: delivro-task
+      POSTGRES_DB: delivry-task
     volumes:
-      - postgres_data:/var/lib/postgresql
+      - postgres18_data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d delivro-task"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d delivry-task"]
       interval: 5s
       timeout: 5s
       retries: 5
 
 volumes:
-  postgres_data:
+  postgres18_data:
