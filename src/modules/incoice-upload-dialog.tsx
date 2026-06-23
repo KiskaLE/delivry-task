@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
 import { invoiceImportSchema } from "~/schema/invoice";
-import { api } from "~/trpc/react";
+import { api, type RouterOutputs } from "~/trpc/react";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -30,6 +30,8 @@ import {
 } from "~/components/ui/table";
 
 type InvoiceImportRow = z.infer<typeof invoiceImportSchema>[number];
+type ImportConflict =
+  RouterOutputs["invoice"]["validateImport"]["conflicts"][number];
 
 type InvoiceUploadDialogProps = {
   onImportSuccessAction?: () => void | Promise<void>;
@@ -54,6 +56,7 @@ export default function InvoiceUploadDialog({
 }: InvoiceUploadDialogProps) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<InvoiceImportRow[]>([]);
+  const [importConflicts, setImportConflicts] = useState<ImportConflict[]>([]);
   const [parseError, setParseError] = useState<string | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
@@ -71,6 +74,13 @@ export default function InvoiceUploadDialog({
       duplicateInvoiceIds.has(row.id) ||
       duplicateShipmentIds.has(row.shipment.id),
   ).length;
+  const conflictsByShipmentId = useMemo(
+    () =>
+      new Map(
+        importConflicts.map((conflict) => [conflict.shipmentId, conflict]),
+      ),
+    [importConflicts],
+  );
 
   const importInvoicesMutation = api.invoice.import.useMutation({
     onError: () => toast.error("Error occur when importing invoices"),
@@ -88,6 +98,7 @@ export default function InvoiceUploadDialog({
       resetUploadForm();
     },
   });
+  const validateImportMutation = api.invoice.validateImport.useMutation();
 
   const form = useForm({
     defaultValues: {
@@ -127,6 +138,7 @@ export default function InvoiceUploadDialog({
   const resetUploadForm = () => {
     form.reset();
     setRows([]);
+    setImportConflicts([]);
     setParseError(null);
     setIsDraggingFiles(false);
     setFileInputKey((key) => key + 1);
@@ -135,6 +147,7 @@ export default function InvoiceUploadDialog({
   const parseJsonFiles = async (files: File[]) => {
     setParseError(null);
     setRows([]);
+    setImportConflicts([]);
 
     const parsedRows: InvoiceImportRow[] = [];
 
@@ -144,13 +157,15 @@ export default function InvoiceUploadDialog({
         const result = invoiceImportSchema.safeParse(json);
 
         if (!result.success) {
-          setParseError(`Soubor ${file.name} nemá očekávaný formát faktur.`);
+          setParseError(
+            `File ${file.name} does not match the expected invoice format.`,
+          );
           return null;
         }
 
         parsedRows.push(...result.data);
       } catch {
-        setParseError(`Soubor ${file.name} není platný JSON.`);
+        setParseError(`File ${file.name} is not valid JSON.`);
         return null;
       }
     }
@@ -168,6 +183,17 @@ export default function InvoiceUploadDialog({
     });
 
     setRows(sortedRows);
+
+    try {
+      const validation = await validateImportMutation.mutateAsync(sortedRows);
+      setImportConflicts(validation.conflicts);
+    } catch {
+      setParseError(
+        "Could not validate the import against existing shipments.",
+      );
+      return null;
+    }
+
     return sortedRows;
   };
 
@@ -209,7 +235,7 @@ export default function InvoiceUploadDialog({
                       className={cn(
                         "border-input bg-input/20 hover:bg-input/30 flex min-h-90 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed px-6 py-14 text-center transition-colors",
                         isDraggingFiles &&
-                        "border-ring bg-input/40 ring-ring/30 ring-2",
+                          "border-ring bg-input/40 ring-ring/30 ring-2",
                         parseError && "border-destructive",
                       )}
                       onDragEnter={(event) => {
@@ -238,7 +264,7 @@ export default function InvoiceUploadDialog({
                         if (files.length === 0) {
                           field.handleChange([]);
                           setRows([]);
-                          setParseError("Vyber aspoň jeden JSON soubor.");
+                          setParseError("Choose at least one JSON file.");
                           return;
                         }
 
@@ -272,7 +298,7 @@ export default function InvoiceUploadDialog({
                       if (files.length === 0) {
                         field.handleChange([]);
                         setRows([]);
-                        setParseError("Vyber aspoň jeden JSON soubor.");
+                        setParseError("Choose at least one JSON file.");
                         return;
                       }
 
@@ -304,6 +330,13 @@ export default function InvoiceUploadDialog({
                   invoice or shipment identifiers. Check the highlighted rows
                   before importing.
                 </div>
+              )}
+              {importConflicts.length > 0 && (
+                <p className="text-destructive mt-3 text-sm">
+                  Import contains {importConflicts.length} shipments that
+                  already belong to a different company. Fix the JSON before
+                  uploading.
+                </p>
               )}
               <div className="mt-2 max-h-96 w-full max-w-full min-w-0 overflow-auto rounded-md border">
                 <table className="w-full min-w-max caption-bottom text-xs">
@@ -342,18 +375,40 @@ export default function InvoiceUploadDialog({
                         hasDuplicateInvoiceId ? "Duplicate invoice" : null,
                         hasDuplicateShipmentId ? "Duplicate shipment" : null,
                       ].filter(Boolean);
+                      const companyConflict = conflictsByShipmentId.get(
+                        row.shipment.id,
+                      );
+                      const hasCompanyConflict = !!companyConflict;
+                      const statusLabels = [
+                        ...duplicateLabels,
+                        hasCompanyConflict ? "Company conflict" : null,
+                      ].filter(Boolean);
 
                       return (
                         <TableRow
                           key={`${row.id}-${row.shipment.id}-${index}`}
                           className={
-                            duplicateLabels.length > 0
+                            statusLabels.length > 0
                               ? "bg-destructive/10"
                               : undefined
                           }
                         >
                           <TableCell>{row.shipment.trackingNumber}</TableCell>
-                          <TableCell>{row.shipment.company.name}</TableCell>
+                          <TableCell
+                            className={
+                              hasCompanyConflict
+                                ? "text-destructive font-medium"
+                                : undefined
+                            }
+                          >
+                            <div>{row.shipment.company.name}</div>
+                            {companyConflict ? (
+                              <div className="text-destructive/80 mt-1 max-w-64 text-[11px] leading-tight whitespace-normal">
+                                Existing shipment belongs to{" "}
+                                {companyConflict.existingCompanyName}
+                              </div>
+                            ) : null}
+                          </TableCell>
                           <TableCell>{row.shipment.provider}</TableCell>
                           <TableCell>{row.shipment.mode}</TableCell>
                           <TableCell>
@@ -373,13 +428,13 @@ export default function InvoiceUploadDialog({
                           </TableCell>
                           <TableCell
                             className={
-                              duplicateLabels.length > 0
+                              statusLabels.length > 0
                                 ? "text-destructive font-medium"
                                 : "text-muted-foreground"
                             }
                           >
-                            {duplicateLabels.length > 0
-                              ? duplicateLabels.join(", ")
+                            {statusLabels.length > 0
+                              ? statusLabels.join(", ")
                               : "OK"}
                           </TableCell>
                         </TableRow>
@@ -396,7 +451,12 @@ export default function InvoiceUploadDialog({
                 Cancel
               </Button>
             </DialogClose>
-            <Button type="submit" disabled={rows.length === 0 || !!parseError}>
+            <Button
+              type="submit"
+              disabled={
+                rows.length === 0 || !!parseError || importConflicts.length > 0
+              }
+            >
               Upload invoices
             </Button>
           </DialogFooter>
