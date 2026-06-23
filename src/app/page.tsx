@@ -14,7 +14,7 @@ import {
 } from "~/components/ui/combobox";
 import type { Company } from "~/modules/hooks/use-home";
 import { useHome } from "~/modules/hooks/use-home";
-import InvoiceUploadDialog from "~/modules/incoice-upload-dialog";
+import InvoiceUploadDialog from "~/modules/invoice-upload-dialog";
 
 export default function Home() {
   const {
