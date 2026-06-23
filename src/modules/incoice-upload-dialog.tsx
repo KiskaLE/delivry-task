@@ -1,11 +1,5 @@
 "use client";
 
-import { useForm } from "@tanstack/react-form";
-import { useMemo, useState } from "react";
-import { toast } from "sonner";
-import z from "zod";
-import { invoiceImportSchema } from "~/schema/invoice";
-import { api, type RouterOutputs } from "~/trpc/react";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -28,186 +22,38 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table";
-
-type InvoiceImportRow = z.infer<typeof invoiceImportSchema>[number];
-type ImportConflict =
-  RouterOutputs["invoice"]["validateImport"]["conflicts"][number];
+import { useInvoiceUploadDialog } from "./hooks/use-invoice-upload-dialog";
 
 type InvoiceUploadDialogProps = {
   onImportSuccessAction?: () => void | Promise<void>;
 };
 
-function getDuplicateValues(values: string[]) {
-  const counts = new Map<string, number>();
-
-  for (const value of values) {
-    counts.set(value, (counts.get(value) ?? 0) + 1);
-  }
-
-  return new Set(
-    Array.from(counts.entries())
-      .filter(([, count]) => count > 1)
-      .map(([value]) => value),
-  );
-}
-
 export default function InvoiceUploadDialog({
   onImportSuccessAction,
 }: InvoiceUploadDialogProps) {
-  const [open, setOpen] = useState(false);
-  const [rows, setRows] = useState<InvoiceImportRow[]>([]);
-  const [importConflicts, setImportConflicts] = useState<ImportConflict[]>([]);
-  const [parseError, setParseError] = useState<string | null>(null);
-  const [fileInputKey, setFileInputKey] = useState(0);
-  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const stickyHeadClass = "sticky top-0 z-10 bg-background";
-  const duplicateInvoiceIds = useMemo(
-    () => getDuplicateValues(rows.map((row) => row.id)),
-    [rows],
-  );
-  const duplicateShipmentIds = useMemo(
-    () => getDuplicateValues(rows.map((row) => row.shipment.id)),
-    [rows],
-  );
-  const duplicateRowsCount = rows.filter(
-    (row) =>
-      duplicateInvoiceIds.has(row.id) ||
-      duplicateShipmentIds.has(row.shipment.id),
-  ).length;
-  const conflictsByShipmentId = useMemo(
-    () =>
-      new Map(
-        importConflicts.map((conflict) => [conflict.shipmentId, conflict]),
-      ),
-    [importConflicts],
-  );
-
-  const importInvoicesMutation = api.invoice.import.useMutation({
-    onError: () => toast.error("Error occur when importing invoices"),
-    onSuccess: (value) => {
-      if (value.duplicates === 0) {
-        toast.success(`${value.imported} invoices imported succesfuly`);
-      } else {
-        toast.success(
-          `${value.imported} invoices imported, ${value.duplicates} duplicates skipped`,
-        );
-      }
-
-      void onImportSuccessAction?.();
-      setOpen(false);
-      resetUploadForm();
-    },
-  });
-  const validateImportMutation = api.invoice.validateImport.useMutation();
-
-  const form = useForm({
-    defaultValues: {
-      files: [] as File[],
-    },
-    validators: {
-      onSubmit: z.object({
-        files: z
-          .array(z.instanceof(File))
-          .min(1, { message: "You must upload at least one JSON file" })
-          .refine(
-            (files) =>
-              files.every(
-                (file) =>
-                  file.type === "application/json" ||
-                  file.name.endsWith(".json"),
-              ),
-            "All files must be JSON.",
-          ),
-      }),
-    },
-    onSubmit: async ({ value }) => {
-      setOpen(false);
-
-      const parsedRows =
-        rows.length > 0 ? rows : await parseJsonFiles(value.files);
-
-      if (!parsedRows) {
-        toast.error("Error parsing JSON");
-        return;
-      }
-
-      importInvoicesMutation.mutate(parsedRows);
-    },
-  });
-
-  const resetUploadForm = () => {
-    form.reset();
-    setRows([]);
-    setImportConflicts([]);
-    setParseError(null);
-    setIsDraggingFiles(false);
-    setFileInputKey((key) => key + 1);
-  };
-
-  const parseJsonFiles = async (files: File[]) => {
-    setParseError(null);
-    setRows([]);
-    setImportConflicts([]);
-
-    const parsedRows: InvoiceImportRow[] = [];
-
-    for (const file of files) {
-      try {
-        const json = JSON.parse(await file.text()) as unknown;
-        const result = invoiceImportSchema.safeParse(json);
-
-        if (!result.success) {
-          setParseError(
-            `File ${file.name} does not match the expected invoice format.`,
-          );
-          return null;
-        }
-
-        parsedRows.push(...result.data);
-      } catch {
-        setParseError(`File ${file.name} is not valid JSON.`);
-        return null;
-      }
-    }
-
-    const sortedRows = [...parsedRows].sort((left, right) => {
-      const createdAtDiff =
-        new Date(left.shipment.createdAt).getTime() -
-        new Date(right.shipment.createdAt).getTime();
-
-      if (createdAtDiff !== 0) {
-        return createdAtDiff;
-      }
-
-      return left.shipment.id.localeCompare(right.shipment.id);
-    });
-
-    setRows(sortedRows);
-
-    try {
-      const validation = await validateImportMutation.mutateAsync(sortedRows);
-      setImportConflicts(validation.conflicts);
-    } catch {
-      setParseError(
-        "Could not validate the import against existing shipments.",
-      );
-      return null;
-    }
-
-    return sortedRows;
-  };
+  const {
+    open,
+    rows,
+    importConflicts,
+    parseError,
+    fileInputKey,
+    isDraggingFiles,
+    duplicateInvoiceIds,
+    duplicateShipmentIds,
+    duplicateRowsCount,
+    conflictsByShipmentId,
+    form,
+    handleOpenChange,
+    handleFilesSelected,
+    handleDragEnter,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+  } = useInvoiceUploadDialog({ onImportSuccessAction });
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(nextOpen) => {
-        setOpen(nextOpen);
-
-        if (!nextOpen) {
-          resetUploadForm();
-        }
-      }}
-    >
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button>Upload invoices</Button>
       </DialogTrigger>
@@ -238,39 +84,12 @@ export default function InvoiceUploadDialog({
                           "border-ring bg-input/40 ring-ring/30 ring-2",
                         parseError && "border-destructive",
                       )}
-                      onDragEnter={(event) => {
-                        event.preventDefault();
-                        setIsDraggingFiles(true);
-                      }}
-                      onDragOver={(event) => {
-                        event.preventDefault();
-                        setIsDraggingFiles(true);
-                      }}
-                      onDragLeave={(event) => {
-                        if (
-                          !event.currentTarget.contains(
-                            event.relatedTarget as Node,
-                          )
-                        ) {
-                          setIsDraggingFiles(false);
-                        }
-                      }}
-                      onDrop={async (event) => {
-                        event.preventDefault();
-                        setIsDraggingFiles(false);
-
-                        const files = Array.from(event.dataTransfer.files);
-
-                        if (files.length === 0) {
-                          field.handleChange([]);
-                          setRows([]);
-                          setParseError("Choose at least one JSON file.");
-                          return;
-                        }
-
-                        field.handleChange(files);
-                        await parseJsonFiles(files);
-                      }}
+                      onDragEnter={handleDragEnter}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(event) =>
+                        void handleDrop(event, field.handleChange)
+                      }
                     >
                       <span className="text-base font-medium">
                         Drop JSON files here
@@ -294,16 +113,7 @@ export default function InvoiceUploadDialog({
                     onBlur={field.handleBlur}
                     onChange={async (event) => {
                       const files = Array.from(event.target.files ?? []);
-
-                      if (files.length === 0) {
-                        field.handleChange([]);
-                        setRows([]);
-                        setParseError("Choose at least one JSON file.");
-                        return;
-                      }
-
-                      field.handleChange(files);
-                      await parseJsonFiles(files);
+                      await handleFilesSelected(files, field.handleChange);
                     }}
                     aria-invalid={!field.state.meta.isValid}
                   />
