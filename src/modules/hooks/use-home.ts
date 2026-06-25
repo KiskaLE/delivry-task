@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type UIEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type UIEvent,
+} from "react";
 
 import { api, type RouterOutputs } from "~/trpc/react";
 
@@ -57,6 +64,9 @@ export function useHome() {
   const [companyId, setCompanyId] = useState<string | undefined>();
   const [companySearch, setCompanySearch] = useState("");
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const shipmentGridContainerRef = useRef<HTMLDivElement>(null);
+  const [shipmentGridContainerWidth, setShipmentGridContainerWidth] =
+    useState(0);
   const columnCount = useInvoiceGridColumnCount();
   const utils = api.useUtils();
 
@@ -142,6 +152,10 @@ export function useHome() {
   const shipmentRowCount = Math.ceil(shipmentsData.length / columnCount);
   const virtualShipmentRowCount =
     shipmentRowCount + (shipmentsQuery.isFetchingNextPage ? 1 : 0);
+  const shipmentGridWidth =
+    shipmentGridContainerWidth > 0 ? shipmentGridContainerWidth + GRID_GAP : 0;
+  const shipmentColumnWidth =
+    shipmentGridWidth > 0 ? shipmentGridWidth / columnCount : 0;
   const {
     fetchNextPage: fetchNextShipmentPage,
     hasNextPage: hasNextShipmentPage,
@@ -181,6 +195,26 @@ export function useHome() {
   );
 
   useEffect(() => {
+    const gridContainer = shipmentGridContainerRef.current;
+
+    if (!gridContainer) {
+      return;
+    }
+
+    const resizeObserver = new ResizeObserver(([entry]) => {
+      if (!entry) {
+        return;
+      }
+
+      setShipmentGridContainerWidth(entry.contentRect.width);
+    });
+
+    resizeObserver.observe(gridContainer);
+
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  useEffect(() => {
     if (
       shipmentsData.length > 0 &&
       shipmentsData.length < 12 &&
@@ -207,14 +241,16 @@ export function useHome() {
     nextCursor,
     selectedCompany,
     shipmentGrid: {
+      columnWidth: shipmentColumnWidth,
       columnCount,
-      columnWidth: `${100 / columnCount}%`,
+      containerRef: shipmentGridContainerRef,
       gap: GRID_GAP,
       getRowHeight: getVirtualShipmentRowHeight,
       key: `${selectedCompany?.id ?? "all"}-${columnCount}`,
       onCellsRendered: handleShipmentCellsRendered,
       rowCount: virtualShipmentRowCount,
       shipmentRowCount,
+      width: shipmentGridWidth,
     },
     shipmentsData,
     shipmentsQuery,

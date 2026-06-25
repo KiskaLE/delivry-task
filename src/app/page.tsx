@@ -49,7 +49,6 @@ export default function Home() {
     }),
     [shipmentGrid.columnCount, shipmentGrid.shipmentRowCount, shipmentsData],
   );
-
   return (
     <main className="flex h-screen flex-col items-center overflow-hidden p-5 pt-10">
       <div className="flex min-h-0 w-full max-w-300 flex-1 flex-col gap-3">
@@ -84,7 +83,10 @@ export default function Home() {
           />
         </div>
 
-        <div className="min-h-0 w-full flex-1">
+        <div
+          ref={shipmentGrid.containerRef}
+          className="min-h-0 w-full flex-1 px-0.5"
+        >
           {shipmentsQuery.isError ? null : isInitialLoading ? (
             <div className="grid w-full gap-5 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
               {Array.from({ length: 30 }).map((_, index) => (
@@ -123,11 +125,16 @@ export default function Home() {
               columnCount={shipmentGrid.columnCount}
               columnWidth={shipmentGrid.columnWidth}
               defaultHeight={720}
+              defaultWidth={shipmentGrid.width}
               onCellsRendered={shipmentGrid.onCellsRendered}
               overscanCount={3}
               rowCount={shipmentGrid.rowCount}
               rowHeight={shipmentGrid.getRowHeight}
-              style={{ height: "100%", width: "100%" }}
+              style={{
+                height: "100%",
+                maxWidth: shipmentGrid.width,
+                width: shipmentGrid.width,
+              }}
             />
           )}
         </div>
