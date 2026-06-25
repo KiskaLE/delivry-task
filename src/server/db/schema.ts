@@ -1,7 +1,7 @@
 // Example model schema from the Drizzle docs
 // https://orm.drizzle.team/docs/sql-schema-declaration
 
-import { index } from "drizzle-orm/pg-core";
+import { index, numeric, text, timestamp } from "drizzle-orm/pg-core";
 import { pgTableCreator } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm/relations";
 
@@ -16,22 +16,36 @@ export const createTable = pgTableCreator((name) => `delivry-task_${name}`);
 export const shipmentProviderEnumValues = ["GLS", "DPD", "UPS", "PPL", "FedEx"] as const;
 export const shipmentModeEnumValues = ["IMPORT", "EXPORT"] as const;
 
+export function timestamps() {
+  return {
+    createdAt: timestamp({ withTimezone: true })
+      .$defaultFn(() => /* @__PURE__ */ new Date())
+      .notNull(),
+    updatedAt: timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
+  };
+}
+
+export function invoiceSchema(options?: { uniqueShipmentId?: boolean }) {
+  const shipmentId = text()
+    .notNull()
+    .references(() => shipments.id);
+
+  return {
+    shipmentId: options?.uniqueShipmentId
+      ? shipmentId.unique()
+      : shipmentId,
+
+    weight: numeric("weight", { mode: "number" }).notNull(),
+    price: numeric("price", { mode: "number" }).notNull(),
+  };
+}
+
 export const invoices = createTable(
   "invoices",
   (d) => ({
     id: d.text().notNull().primaryKey(),
-    shipmentId: d
-      .text()
-      .unique()
-      .notNull()
-      .references(() => shipments.id),
-    weight: d.numeric({ mode: "number" }).notNull(), // units in KG
-    price: d.numeric({ mode: "number" }).notNull(), // units in CZK
-    createdAt: d
-      .timestamp({ withTimezone: true })
-      .$defaultFn(() => /* @__PURE__ */ new Date())
-      .notNull(),
-    updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
+    ...invoiceSchema({ uniqueShipmentId: true }),
+    ...timestamps()
   }),
   (table) => [
     index("invoice_shipment_id_idx").on(table.shipmentId),
@@ -44,17 +58,8 @@ export const invoicesHistory = createTable(
   (d) => ({
     id: d.serial().primaryKey(),
     invoiceId: d.text().notNull(),
-    shipmentId: d
-      .text()
-      .notNull()
-      .references(() => shipments.id),
-    weight: d.numeric({ mode: "number" }).notNull(), // units in KG
-    price: d.numeric({ mode: "number" }).notNull(), // units in CZK
-    createdAt: d
-      .timestamp({ withTimezone: true })
-      .$defaultFn(() => /* @__PURE__ */ new Date())
-      .notNull(),
-    updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
+    ...invoiceSchema(),
+    ...timestamps()
   }),
   (table) => [
     index("invoice_history_shipment_id_idx").on(table.shipmentId),
@@ -83,11 +88,7 @@ export const shipments = createTable(
       .notNull(),
     originCountry: d.text().notNull(), // ISO code of the origin country
     destinationCountry: d.text().notNull(), // ISO code of the destination country
-    createdAt: d
-      .timestamp({ withTimezone: true })
-      .$defaultFn(() => /* @__PURE__ */ new Date())
-      .notNull(),
-    updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
+    ...timestamps()
   }),
   (table) => [
     index("shipment_company_id_idx").on(table.companyId),
@@ -101,11 +102,7 @@ export const companies = createTable(
   (d) => ({
     id: d.text().notNull().primaryKey(),
     name: d.text().notNull(),
-    createdAt: d
-      .timestamp({ withTimezone: true })
-      .$defaultFn(() => /* @__PURE__ */ new Date())
-      .notNull(),
-    updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
+    ...timestamps()
   }),
   (table) => [index("company_created_at_idx").on(table.createdAt)],
 );
