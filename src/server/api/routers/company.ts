@@ -27,7 +27,7 @@ export const companyRouter = createTRPCRouter({
         })
             .from(companies)
             .where(and(
-                search ? ilike(companies.name, `%${search}%`) : undefined,
+                search ? ilike(companies.name, `%${search.replace(/[%_]/g, "\\$&")}%`) : undefined,
                 cursor
                     ? or(
                         gt(companies.name, cursor.name),
