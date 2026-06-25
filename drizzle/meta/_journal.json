@@ -15,6 +15,13 @@
       "when": 1781946492263,
       "tag": "0001_add_invoice_history_on_update_trigger",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782400516167,
+      "tag": "0002_add_index_for_created_at_and_id.sql",
+      "breakpoints": true
     }
   ]
 }

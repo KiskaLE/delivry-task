@@ -92,6 +92,7 @@ export const shipments = createTable(
   (table) => [
     index("shipment_company_id_idx").on(table.companyId),
     index("shipment_created_at_idx").on(table.createdAt),
+    index("shipment_created_at_id_idx").on(table.createdAt, table.id)
   ],
 );
 
