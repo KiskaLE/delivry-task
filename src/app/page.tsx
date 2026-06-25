@@ -127,6 +127,7 @@ export default function Home() {
               defaultHeight={720}
               defaultWidth={shipmentGrid.width}
               onCellsRendered={shipmentGrid.onCellsRendered}
+              onScroll={shipmentGrid.onScroll}
               overscanCount={3}
               rowCount={shipmentGrid.rowCount}
               rowHeight={shipmentGrid.getRowHeight}

@@ -65,6 +65,7 @@ export function useHome() {
   const [companySearch, setCompanySearch] = useState("");
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const shipmentGridContainerRef = useRef<HTMLDivElement>(null);
+  const hasShipmentGridScrolledRef = useRef(false);
   const [shipmentGridContainerWidth, setShipmentGridContainerWidth] =
     useState(0);
   const columnCount = useInvoiceGridColumnCount();
@@ -95,6 +96,7 @@ export function useHome() {
   );
 
   function handleCompanyFilter(company: Company | null) {
+    hasShipmentGridScrolledRef.current = false;
     setSelectedCompany(company);
     setCompanyId(company?.id);
   }
@@ -175,7 +177,12 @@ export function useHome() {
       const isNearEnd =
         shipmentsData.length - lastRenderedItemIndex <= columnCount * 2;
 
-      if (isNearEnd && hasNextShipmentPage && !isFetchingNextShipmentPage) {
+      if (
+        hasShipmentGridScrolledRef.current &&
+        isNearEnd &&
+        hasNextShipmentPage &&
+        !isFetchingNextShipmentPage
+      ) {
         void fetchNextShipmentPage();
       }
     },
@@ -186,6 +193,15 @@ export function useHome() {
       isFetchingNextShipmentPage,
       shipmentsData.length,
     ],
+  );
+
+  const handleShipmentGridScroll = useCallback(
+    (event: UIEvent<HTMLDivElement>) => {
+      if (event.currentTarget.scrollTop > 0) {
+        hasShipmentGridScrolledRef.current = true;
+      }
+    },
+    [],
   );
 
   const getVirtualShipmentRowHeight = useCallback(
@@ -214,22 +230,6 @@ export function useHome() {
     return () => resizeObserver.disconnect();
   }, []);
 
-  useEffect(() => {
-    if (
-      shipmentsData.length > 0 &&
-      shipmentsData.length < 12 &&
-      hasNextShipmentPage &&
-      !isFetchingNextShipmentPage
-    ) {
-      void fetchNextShipmentPage();
-    }
-  }, [
-    fetchNextShipmentPage,
-    hasNextShipmentPage,
-    isFetchingNextShipmentPage,
-    shipmentsData.length,
-  ]);
-
   return {
     companiesData,
     isFetching: companiesQuery.isFetching,
@@ -248,6 +248,7 @@ export function useHome() {
       getRowHeight: getVirtualShipmentRowHeight,
       key: `${selectedCompany?.id ?? "all"}-${columnCount}`,
       onCellsRendered: handleShipmentCellsRendered,
+      onScroll: handleShipmentGridScroll,
       rowCount: virtualShipmentRowCount,
       shipmentRowCount,
       width: shipmentGridWidth,
