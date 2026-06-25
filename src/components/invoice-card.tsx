@@ -16,15 +16,13 @@ import {
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
 import {
-  Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from "./ui/sheet";
 
-type InvoiceHistoryData = {
+export type InvoiceHistoryData = {
   id: number;
   invoiceId: string;
   weight: number;
@@ -33,7 +31,7 @@ type InvoiceHistoryData = {
   updatedAt: Date | null;
 };
 
-type InvoiceCardData = {
+export type InvoiceCardData = {
   provider: ShipmentProviders;
   invoicedWeight: number;
   invoicedPrice: number;
@@ -44,6 +42,10 @@ type InvoiceCardData = {
   originCountry: string;
   destinationCountry: string;
   shipmentMode: ShipmentModes;
+};
+
+type InvoiceCardProps = InvoiceCardData & {
+  onInvoiceHistoryOpenAction?: (invoice: InvoiceCardData) => void;
 };
 
 function getDeliveryProviderLogo(
@@ -120,9 +122,22 @@ export default function InvoiceCard({
   invoicedPrice,
   invoicedWeight,
   invoiceHistory,
-}: InvoiceCardData) {
+  onInvoiceHistoryOpenAction,
+}: InvoiceCardProps) {
   const [isTrackingCopied, setIsTrackingCopied] = useState(false);
   const historyCount = invoiceHistory.length;
+  const invoiceData = {
+    provider,
+    trackingNumber,
+    companyName,
+    shipmentCreatedAt,
+    originCountry,
+    destinationCountry,
+    shipmentMode,
+    invoicedPrice,
+    invoicedWeight,
+    invoiceHistory,
+  };
 
   async function handleCopyTrackingNumber() {
     await navigator.clipboard.writeText(trackingNumber);
@@ -131,7 +146,7 @@ export default function InvoiceCard({
   }
 
   return (
-    <Sheet>
+    <>
       <Card className="w-full gap-0 p-0 transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
         <div className="bg-muted/30 flex items-start justify-between gap-3 border-b p-4">
           <div className="flex min-w-0 items-center gap-3">
@@ -179,24 +194,23 @@ export default function InvoiceCard({
               {shipmentMode}
             </div>
             {historyCount > 0 ? (
-              <SheetTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground cursor-pointer hover:text-foreground relative"
-                  aria-label={`Open invoice history, ${historyCount} records`}
-                  title="Invoice history"
-                >
-                  <HugeiconsIcon
-                    icon={CalendarClockIcon}
-                    strokeWidth={2}
-                    className="size-3.5"
-                  />
-                  <span className="bg-muted text-muted-foreground ring-background absolute -right-1 -bottom-1 rounded-sm px-1 text-[9px] leading-3 ring-1">
-                    {historyCount.toLocaleString("cs-CZ")}
-                  </span>
-                </Button>
-              </SheetTrigger>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-foreground relative cursor-pointer"
+                aria-label={`Open invoice history, ${historyCount} records`}
+                title="Invoice history"
+                onClick={() => onInvoiceHistoryOpenAction?.(invoiceData)}
+              >
+                <HugeiconsIcon
+                  icon={CalendarClockIcon}
+                  strokeWidth={2}
+                  className="size-3.5"
+                />
+                <span className="bg-muted text-muted-foreground ring-background absolute -right-1 -bottom-1 rounded-sm px-1 text-[9px] leading-3 ring-1">
+                  {historyCount.toLocaleString("cs-CZ")}
+                </span>
+              </Button>
             ) : null}
           </div>
         </div>
@@ -263,87 +277,95 @@ export default function InvoiceCard({
           </div>
         </div>
       </Card>
+    </>
+  );
+}
 
-      {historyCount > 0 ? (
-        <SheetContent className="w-full overflow-hidden sm:max-w-xl">
-          <SheetHeader className="shrink-0 border-b pr-14">
-            <SheetTitle>Invoice history</SheetTitle>
-            <SheetDescription>
-              {companyName} - TRK {trackingNumber}
-            </SheetDescription>
-          </SheetHeader>
+export function InvoiceHistorySheetContent({
+  companyName,
+  trackingNumber,
+  invoicedPrice,
+  invoicedWeight,
+  invoiceHistory,
+}: InvoiceCardData) {
+  return (
+    <SheetContent className="w-full overflow-hidden sm:max-w-xl">
+      <SheetHeader className="shrink-0 border-b pr-14">
+        <SheetTitle>Invoice history</SheetTitle>
+        <SheetDescription>
+          {companyName} - TRK {trackingNumber}
+        </SheetDescription>
+      </SheetHeader>
 
-          <div className="shrink-0 border-b px-6 py-5">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-muted/40 rounded-md p-3">
-                <div className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
-                  Current price
-                </div>
-                <div className="text-base font-semibold">
-                  {`${invoicedPrice.toLocaleString("cs-CZ")} Kč`}
-                </div>
-              </div>
-              <div className="bg-muted/40 rounded-md p-3">
-                <div className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
-                  Current weight
-                </div>
-                <div className="text-base font-semibold">
-                  {`${invoicedWeight.toLocaleString("cs-CZ")} kg`}
-                </div>
-              </div>
+      <div className="shrink-0 border-b px-6 py-5">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-muted/40 rounded-md p-3">
+            <div className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+              Current price
+            </div>
+            <div className="text-base font-semibold">
+              {`${invoicedPrice.toLocaleString("cs-CZ")} Kč`}
             </div>
           </div>
-
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-            <div className="flex flex-col gap-3">
-              {invoiceHistory.map((history) => (
-                <Card
-                  key={`${history.id}-${history.invoiceId}`}
-                  className="gap-3 p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
-                        Changed
-                      </div>
-                      <div className="font-medium">
-                        {history.createdAt.toLocaleDateString("cs-CZ", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                        })}
-                      </div>
-                    </div>
-                    <div className="text-muted-foreground bg-muted max-w-36 truncate rounded-sm px-1.5 py-0.5 font-mono text-[10px]">
-                      {history.invoiceId}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-muted/40 rounded-md px-3 py-2">
-                      <div className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
-                        Price
-                      </div>
-                      <div className="font-semibold">
-                        {`${history.price.toLocaleString("cs-CZ")} Kč`}
-                      </div>
-                    </div>
-                    <div className="bg-muted/40 rounded-md px-3 py-2">
-                      <div className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
-                        Weight
-                      </div>
-                      <div className="font-semibold">
-                        {`${history.weight.toLocaleString("cs-CZ")} kg`}
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-              ))}
+          <div className="bg-muted/40 rounded-md p-3">
+            <div className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+              Current weight
+            </div>
+            <div className="text-base font-semibold">
+              {`${invoicedWeight.toLocaleString("cs-CZ")} kg`}
             </div>
           </div>
-        </SheetContent>
-      ) : null}
-    </Sheet>
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div className="flex flex-col gap-3">
+          {invoiceHistory.map((history) => (
+            <Card
+              key={`${history.id}-${history.invoiceId}`}
+              className="gap-3 p-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+                    Changed
+                  </div>
+                  <div className="font-medium">
+                    {history.createdAt.toLocaleDateString("cs-CZ", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                    })}
+                  </div>
+                </div>
+                <div className="text-muted-foreground bg-muted max-w-36 truncate rounded-sm px-1.5 py-0.5 font-mono text-[10px]">
+                  {history.invoiceId}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-muted/40 rounded-md px-3 py-2">
+                  <div className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+                    Price
+                  </div>
+                  <div className="font-semibold">
+                    {`${history.price.toLocaleString("cs-CZ")} Kč`}
+                  </div>
+                </div>
+                <div className="bg-muted/40 rounded-md px-3 py-2">
+                  <div className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+                    Weight
+                  </div>
+                  <div className="font-semibold">
+                    {`${history.weight.toLocaleString("cs-CZ")} kg`}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </SheetContent>
   );
 }
 

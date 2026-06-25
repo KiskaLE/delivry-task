@@ -2,8 +2,13 @@
 
 import { PackageIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useState } from "react";
 
-import InvoiceCard, { InvoiceCardSkeleton } from "~/components/invoice-card";
+import InvoiceCard, {
+  InvoiceCardSkeleton,
+  InvoiceHistorySheetContent,
+  type InvoiceCardData,
+} from "~/components/invoice-card";
 import {
   Combobox,
   ComboboxContent,
@@ -12,11 +17,14 @@ import {
   ComboboxItem,
   ComboboxList,
 } from "~/components/ui/combobox";
+import { Sheet } from "~/components/ui/sheet";
 import type { Company } from "~/modules/hooks/use-home";
 import { useHome } from "~/modules/hooks/use-home";
 import InvoiceUploadDialog from "~/modules/invoice-upload-dialog";
 
 export default function Home() {
+  const [selectedInvoiceHistory, setSelectedInvoiceHistory] =
+    useState<InvoiceCardData | null>(null);
   const {
     companiesData,
     isFetching,
@@ -110,11 +118,24 @@ export default function Home() {
                   invoicedWeight={data.invoices.weight}
                   invoiceHistory={data.invoices_history}
                   shipmentCreatedAt={data.createdAt}
+                  onInvoiceHistoryOpenAction={setSelectedInvoiceHistory}
                 />
               );
             })
           )}
         </div>
+        <Sheet
+          open={selectedInvoiceHistory !== null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedInvoiceHistory(null);
+            }
+          }}
+        >
+          {selectedInvoiceHistory ? (
+            <InvoiceHistorySheetContent {...selectedInvoiceHistory} />
+          ) : null}
+        </Sheet>
         <div
           ref={loadMoreRef}
           className="text-muted-foreground h-8 self-center text-sm"
