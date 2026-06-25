@@ -19,6 +19,7 @@ import InvoiceUploadDialog from "~/modules/invoice-upload-dialog";
 export default function Home() {
   const {
     companiesData,
+    isFetching,
     handleCompanyFilter,
     handleInvoiceImportSuccess,
     handleCompanyListScroll,
@@ -46,7 +47,9 @@ export default function Home() {
           >
             <ComboboxInput placeholder="Select company" showClear />
             <ComboboxContent>
-              <ComboboxEmpty>No items found.</ComboboxEmpty>
+              <ComboboxEmpty>
+                {isFetching && companiesData.length === 0 ? "Loading..." : "No items found."}
+              </ComboboxEmpty>
               <ComboboxList onScroll={handleCompanyListScroll}>
                 {(item: Company) => (
                   <ComboboxItem key={item.id} value={item}>

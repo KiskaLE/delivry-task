@@ -139,6 +139,7 @@ export function useHome() {
 
   return {
     companiesData,
+    isFetching: shipmentsQuery.isFetching,
     handleCompanyFilter,
     handleInvoiceImportSuccess,
     handleCompanyListScroll,
