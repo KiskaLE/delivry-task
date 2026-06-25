@@ -2,9 +2,10 @@
 
 import { PackageIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { Grid } from "react-window";
 
-import InvoiceCard, {
+import {
   InvoiceCardSkeleton,
   InvoiceHistorySheetContent,
   type InvoiceCardData,
@@ -20,6 +21,7 @@ import {
 import { Sheet } from "~/components/ui/sheet";
 import type { Company } from "~/modules/hooks/use-home";
 import { useHome } from "~/modules/hooks/use-home";
+import { InvoiceGridCell } from "~/modules/invoice-grid-cell";
 import InvoiceUploadDialog from "~/modules/invoice-upload-dialog";
 
 export default function Home() {
@@ -33,17 +35,25 @@ export default function Home() {
     handleCompanyListScroll,
     handleCompanySearch,
     isInitialLoading,
-    loadMoreRef,
-    nextCursor,
     selectedCompany,
+    shipmentGrid,
     shipmentsData,
     shipmentsQuery,
   } = useHome();
+  const rowProps = useMemo(
+    () => ({
+      columnCount: shipmentGrid.columnCount,
+      onInvoiceHistoryOpenAction: setSelectedInvoiceHistory,
+      shipmentRowCount: shipmentGrid.shipmentRowCount,
+      shipments: shipmentsData,
+    }),
+    [shipmentGrid.columnCount, shipmentGrid.shipmentRowCount, shipmentsData],
+  );
 
   return (
-    <main className="flex min-h-screen flex-col items-center gap-5 p-5 pt-10">
-      <div className="flex w-full max-w-300 flex-col gap-3">
-        <div className="flex w-full max-w-300 justify-between">
+    <main className="flex h-screen flex-col items-center overflow-hidden p-5 pt-10">
+      <div className="flex min-h-0 w-full max-w-300 flex-1 flex-col gap-3">
+        <div className="flex w-full max-w-300 shrink-0 justify-between">
           <Combobox
             items={companiesData}
             value={selectedCompany}
@@ -56,7 +66,9 @@ export default function Home() {
             <ComboboxInput placeholder="Select company" showClear />
             <ComboboxContent>
               <ComboboxEmpty>
-                {isFetching && companiesData.length === 0 ? "Loading..." : "No items found."}
+                {isFetching && companiesData.length === 0
+                  ? "Loading..."
+                  : "No items found."}
               </ComboboxEmpty>
               <ComboboxList onScroll={handleCompanyListScroll}>
                 {(item: Company) => (
@@ -72,11 +84,13 @@ export default function Home() {
           />
         </div>
 
-        <div className="grid w-full gap-5 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        <div className="min-h-0 w-full flex-1">
           {shipmentsQuery.isError ? null : isInitialLoading ? (
-            Array.from({ length: 30 }).map((_, index) => (
-              <InvoiceCardSkeleton key={index} />
-            ))
+            <div className="grid w-full gap-5 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 30 }).map((_, index) => (
+                <InvoiceCardSkeleton key={index} />
+              ))}
+            </div>
           ) : shipmentsData.length === 0 ? (
             <div className="border-border/70 bg-card col-span-full flex min-h-80 flex-col items-center justify-center rounded-lg border border-dashed px-6 py-12 text-center">
               <div className="bg-muted text-muted-foreground flex size-12 items-center justify-center rounded-md">
@@ -101,27 +115,20 @@ export default function Home() {
               </div>
             </div>
           ) : (
-            shipmentsData.map((data) => {
-              if (!data.invoices) {
-                return null;
-              }
-              return (
-                <InvoiceCard
-                  key={data.id}
-                  companyName={data.company.name}
-                  provider={data.provider}
-                  trackingNumber={data.trackingNumber}
-                  shipmentMode={data.mode}
-                  originCountry={data.originCountry}
-                  destinationCountry={data.destinationCountry}
-                  invoicedPrice={data.invoices.price}
-                  invoicedWeight={data.invoices.weight}
-                  invoiceHistory={data.invoices_history}
-                  shipmentCreatedAt={data.createdAt}
-                  onInvoiceHistoryOpenAction={setSelectedInvoiceHistory}
-                />
-              );
-            })
+            <Grid
+              key={shipmentGrid.key}
+              className="-mx-2.5"
+              cellComponent={InvoiceGridCell}
+              cellProps={rowProps}
+              columnCount={shipmentGrid.columnCount}
+              columnWidth={shipmentGrid.columnWidth}
+              defaultHeight={720}
+              onCellsRendered={shipmentGrid.onCellsRendered}
+              overscanCount={3}
+              rowCount={shipmentGrid.rowCount}
+              rowHeight={shipmentGrid.getRowHeight}
+              style={{ height: "100%", width: "100%" }}
+            />
           )}
         </div>
         <Sheet
@@ -136,12 +143,6 @@ export default function Home() {
             <InvoiceHistorySheetContent {...selectedInvoiceHistory} />
           ) : null}
         </Sheet>
-        <div
-          ref={loadMoreRef}
-          className="text-muted-foreground h-8 self-center text-sm"
-        >
-          {nextCursor && shipmentsQuery.isFetching ? "Loading..." : null}
-        </div>
       </div>
     </main>
   );

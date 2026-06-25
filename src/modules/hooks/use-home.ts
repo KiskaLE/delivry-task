@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState, type UIEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type UIEvent } from "react";
 
 import { api, type RouterOutputs } from "~/trpc/react";
+
+const INVOICE_CARD_ROW_HEIGHT = 300;
+const LOADING_ROW_HEIGHT = 44;
+const GRID_GAP = 20;
 
 type ShipmentsListData = RouterOutputs["shipment"]["list"];
 type CompaniesFindData = RouterOutputs["company"]["find"];
 export type Company = CompaniesFindData["data"][number];
+export type Shipment = ShipmentsListData["data"][number];
 
 function uniqueById<T extends { id: string }>(items: T[]) {
   const seen = new Set<string>();
@@ -21,11 +26,38 @@ function uniqueById<T extends { id: string }>(items: T[]) {
   });
 }
 
+function useInvoiceGridColumnCount() {
+  const [columnCount, setColumnCount] = useState(1);
+
+  useEffect(() => {
+    function updateColumnCount() {
+      if (window.matchMedia("(min-width: 1024px)").matches) {
+        setColumnCount(3);
+        return;
+      }
+
+      if (window.matchMedia("(min-width: 768px)").matches) {
+        setColumnCount(2);
+        return;
+      }
+
+      setColumnCount(1);
+    }
+
+    updateColumnCount();
+    window.addEventListener("resize", updateColumnCount);
+
+    return () => window.removeEventListener("resize", updateColumnCount);
+  }, []);
+
+  return columnCount;
+}
+
 export function useHome() {
   const [companyId, setCompanyId] = useState<string | undefined>();
   const [companySearch, setCompanySearch] = useState("");
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
-  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const columnCount = useInvoiceGridColumnCount();
   const utils = api.useUtils();
 
   const companiesQuery = api.company.find.useInfiniteQuery(
@@ -86,53 +118,82 @@ export function useHome() {
     ]);
   }
 
-  const shipmentsData = uniqueById(
-    shipmentsQuery.data?.pages.flatMap(
-      (page: ShipmentsListData) => page.data,
-    ) ?? [],
+  const shipmentsData = useMemo(
+    () =>
+      uniqueById(
+        shipmentsQuery.data?.pages.flatMap(
+          (page: ShipmentsListData) => page.data,
+        ) ?? [],
+      ),
+    [shipmentsQuery.data?.pages],
   );
-  const companiesData = uniqueById(
-    companiesQuery.data?.pages.flatMap(
-      (page: CompaniesFindData) => page.data,
-    ) ?? [],
+  const companiesData = useMemo(
+    () =>
+      uniqueById(
+        companiesQuery.data?.pages.flatMap(
+          (page: CompaniesFindData) => page.data,
+        ) ?? [],
+      ),
+    [companiesQuery.data?.pages],
   );
   const nextCursor = shipmentsQuery.data?.pages.at(-1)?.nextCursor ?? null;
   const isInitialLoading =
     shipmentsQuery.isLoading && shipmentsData.length === 0;
+  const shipmentRowCount = Math.ceil(shipmentsData.length / columnCount);
+  const virtualShipmentRowCount =
+    shipmentRowCount + (shipmentsQuery.isFetchingNextPage ? 1 : 0);
   const {
     fetchNextPage: fetchNextShipmentPage,
     hasNextPage: hasNextShipmentPage,
     isFetchingNextPage: isFetchingNextShipmentPage,
   } = shipmentsQuery;
 
+  const handleShipmentCellsRendered = useCallback(
+    ({
+      rowStopIndex,
+    }: {
+      columnStartIndex: number;
+      columnStopIndex: number;
+      rowStartIndex: number;
+      rowStopIndex: number;
+    }) => {
+      const lastRenderedItemIndex = (rowStopIndex + 1) * columnCount - 1;
+      const isNearEnd =
+        shipmentsData.length - lastRenderedItemIndex <= columnCount * 2;
+
+      if (isNearEnd && hasNextShipmentPage && !isFetchingNextShipmentPage) {
+        void fetchNextShipmentPage();
+      }
+    },
+    [
+      columnCount,
+      fetchNextShipmentPage,
+      hasNextShipmentPage,
+      isFetchingNextShipmentPage,
+      shipmentsData.length,
+    ],
+  );
+
+  const getVirtualShipmentRowHeight = useCallback(
+    (index: number) =>
+      index < shipmentRowCount ? INVOICE_CARD_ROW_HEIGHT : LOADING_ROW_HEIGHT,
+    [shipmentRowCount],
+  );
+
   useEffect(() => {
-    const loadMoreElement = loadMoreRef.current;
-
-    if (!loadMoreElement || !nextCursor) {
-      return;
+    if (
+      shipmentsData.length > 0 &&
+      shipmentsData.length < 12 &&
+      hasNextShipmentPage &&
+      !isFetchingNextShipmentPage
+    ) {
+      void fetchNextShipmentPage();
     }
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (
-          entry?.isIntersecting &&
-          hasNextShipmentPage &&
-          !isFetchingNextShipmentPage
-        ) {
-          void fetchNextShipmentPage();
-        }
-      },
-      { rootMargin: "400px" },
-    );
-
-    observer.observe(loadMoreElement);
-
-    return () => observer.disconnect();
   }, [
     fetchNextShipmentPage,
     hasNextShipmentPage,
     isFetchingNextShipmentPage,
-    nextCursor,
+    shipmentsData.length,
   ]);
 
   return {
@@ -143,9 +204,18 @@ export function useHome() {
     handleCompanyListScroll,
     handleCompanySearch,
     isInitialLoading,
-    loadMoreRef,
     nextCursor,
     selectedCompany,
+    shipmentGrid: {
+      columnCount,
+      columnWidth: `${100 / columnCount}%`,
+      gap: GRID_GAP,
+      getRowHeight: getVirtualShipmentRowHeight,
+      key: `${selectedCompany?.id ?? "all"}-${columnCount}`,
+      onCellsRendered: handleShipmentCellsRendered,
+      rowCount: virtualShipmentRowCount,
+      shipmentRowCount,
+    },
     shipmentsData,
     shipmentsQuery,
   };
