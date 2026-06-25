@@ -5,10 +5,8 @@ import { useEffect, useRef, useState, type UIEvent } from "react";
 import { api, type RouterOutputs } from "~/trpc/react";
 
 type ShipmentsListData = RouterOutputs["shipment"]["list"];
-type ShipmentCursor = NonNullable<ShipmentsListData["nextCursor"]>;
 type CompaniesFindData = RouterOutputs["company"]["find"];
 export type Company = CompaniesFindData["data"][number];
-type CompanyCursor = NonNullable<CompaniesFindData["nextCursor"]>;
 
 function uniqueById<T extends { id: string }>(items: T[]) {
   const seen = new Set<string>();
@@ -24,41 +22,39 @@ function uniqueById<T extends { id: string }>(items: T[]) {
 }
 
 export function useHome() {
-  const [cursor, setCursor] = useState<ShipmentCursor>();
-  const [shipmentPages, setShipmentPages] = useState<ShipmentsListData[]>([]);
   const [companyId, setCompanyId] = useState<string | undefined>();
   const [companySearch, setCompanySearch] = useState("");
-  const [companyCursor, setCompanyCursor] = useState<CompanyCursor>();
-  const [companyPages, setCompanyPages] = useState<CompaniesFindData[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const utils = api.useUtils();
 
-  const companiesQuery = api.company.find.useQuery({
-    filter: {
-      search: companySearch || undefined,
+  const companiesQuery = api.company.find.useInfiniteQuery(
+    {
+      filter: {
+        search: companySearch || undefined,
+      },
+      limit: 30,
     },
-    paginate: {
-      pageSize: 30,
-      cursor: companyCursor,
+    {
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
     },
-  });
+  );
 
-  const shipmentsQuery = api.shipment.list.useQuery({
-    filter: {
-      companyId,
+  const shipmentsQuery = api.shipment.list.useInfiniteQuery(
+    {
+      filter: {
+        companyId,
+      },
+      limit: 30,
     },
-    paginate: {
-      pageSize: 30,
-      cursor,
+    {
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
     },
-  });
+  );
 
   function handleCompanyFilter(company: Company | null) {
     setSelectedCompany(company);
     setCompanyId(company?.id);
-    setCursor(undefined);
-    setShipmentPages([]);
   }
 
   function handleCompanySearch(value: string) {
@@ -67,54 +63,47 @@ export function useHome() {
     }
 
     setCompanySearch(value);
-    setCompanyCursor(undefined);
-    setCompanyPages([]);
   }
 
   function handleCompanyListScroll(event: UIEvent<HTMLDivElement>) {
     const target = event.currentTarget;
     const isNearBottom =
       target.scrollHeight - target.scrollTop - target.clientHeight < 80;
-    const nextCompanyCursor = companyPages.at(-1)?.nextCursor;
 
-    if (isNearBottom && nextCompanyCursor && !companiesQuery.isFetching) {
-      setCompanyCursor(nextCompanyCursor);
+    if (
+      isNearBottom &&
+      companiesQuery.hasNextPage &&
+      !companiesQuery.isFetchingNextPage
+    ) {
+      void companiesQuery.fetchNextPage();
     }
   }
 
   async function handleInvoiceImportSuccess() {
-    setCursor(undefined);
-    setShipmentPages([]);
-    setCompanyCursor(undefined);
-    setCompanyPages([]);
-
     await Promise.all([
       utils.shipment.list.invalidate(),
       utils.company.find.invalidate(),
     ]);
   }
 
-  useEffect(() => {
-    if (!shipmentsQuery.isLoading && shipmentsQuery.data) {
-      setShipmentPages((pages) =>
-        cursor ? [...pages, shipmentsQuery.data] : [shipmentsQuery.data],
-      );
-    }
-  }, [cursor, shipmentsQuery.data, shipmentsQuery.isLoading]);
-
-  useEffect(() => {
-    if (!companiesQuery.isLoading && companiesQuery.data) {
-      setCompanyPages((pages) =>
-        companyCursor ? [...pages, companiesQuery.data] : [companiesQuery.data],
-      );
-    }
-  }, [companyCursor, companiesQuery.data, companiesQuery.isLoading]);
-
-  const shipmentsData = uniqueById(shipmentPages.flatMap((page) => page.data));
-  const companiesData = uniqueById(companyPages.flatMap((page) => page.data));
-  const nextCursor = shipmentPages.at(-1)?.nextCursor;
+  const shipmentsData = uniqueById(
+    shipmentsQuery.data?.pages.flatMap(
+      (page: ShipmentsListData) => page.data,
+    ) ?? [],
+  );
+  const companiesData = uniqueById(
+    companiesQuery.data?.pages.flatMap(
+      (page: CompaniesFindData) => page.data,
+    ) ?? [],
+  );
+  const nextCursor = shipmentsQuery.data?.pages.at(-1)?.nextCursor ?? null;
   const isInitialLoading =
     shipmentsQuery.isLoading && shipmentsData.length === 0;
+  const {
+    fetchNextPage: fetchNextShipmentPage,
+    hasNextPage: hasNextShipmentPage,
+    isFetchingNextPage: isFetchingNextShipmentPage,
+  } = shipmentsQuery;
 
   useEffect(() => {
     const loadMoreElement = loadMoreRef.current;
@@ -125,8 +114,12 @@ export function useHome() {
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry?.isIntersecting && !shipmentsQuery.isFetching) {
-          setCursor(nextCursor);
+        if (
+          entry?.isIntersecting &&
+          hasNextShipmentPage &&
+          !isFetchingNextShipmentPage
+        ) {
+          void fetchNextShipmentPage();
         }
       },
       { rootMargin: "400px" },
@@ -135,11 +128,16 @@ export function useHome() {
     observer.observe(loadMoreElement);
 
     return () => observer.disconnect();
-  }, [nextCursor, shipmentsQuery.isFetching]);
+  }, [
+    fetchNextShipmentPage,
+    hasNextShipmentPage,
+    isFetchingNextShipmentPage,
+    nextCursor,
+  ]);
 
   return {
     companiesData,
-    isFetching: shipmentsQuery.isFetching,
+    isFetching: companiesQuery.isFetching,
     handleCompanyFilter,
     handleInvoiceImportSuccess,
     handleCompanyListScroll,
